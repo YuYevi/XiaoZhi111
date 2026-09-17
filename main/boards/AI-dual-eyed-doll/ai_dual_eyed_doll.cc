@@ -19,6 +19,7 @@
 #include "application.h"
 #include "audio_codec.h"
 #include "board.h"
+#include "board_animations.h"
 #include "board_sounds.h"
 #include "button.h"
 #include "codecs/es8389_audio_codec.h"
@@ -85,6 +86,22 @@ static const gc9d01_lcd_init_cmd_t kGc9d01InitCommands[] = {
 
 class AiDualEyedDollBoard : public WifiBoard {
 private:
+    // KEY 1 walks through these scenes in order and wraps around.
+    enum EyeScene {
+        kEyeSceneShy = 0,
+        kEyeSceneCuteLaugh,
+        kEyeSceneCuteTsundere,
+        kEyeSceneCount,
+    };
+
+    // The eight static expressions that shipped before the animations. The power
+    // button walks this list, so the old eye set is still reachable.
+    static constexpr const char* kStaticEmotions[] = {
+        "cute", "happy", "surprised", "angry", "sad", "sleepy", "shy", "shocked",
+    };
+    static constexpr int kStaticEmotionCount =
+        static_cast<int>(sizeof(kStaticEmotions) / sizeof(kStaticEmotions[0]));
+
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     DualEyeDisplay* display_ = nullptr;
     AdcBatteryMonitor* battery_monitor_ = nullptr;
@@ -94,6 +111,8 @@ private:
     Button touch2_button_;
     bool screen_on_ = true;
     bool power_button_released_ = false;
+    int eye_scene_ = -1;  // -1 so the first KEY 1 press lands on kEyeSceneShy.
+    int static_emotion_ = -1;  // -1 so the first power click lands on kStaticEmotions[0].
 
     void ConfigureWakeAndPowerOff() {
         rtc_gpio_init(PWR_BUTTON_GPIO);
@@ -175,10 +194,58 @@ private:
         EnterWifiConfigMode();
     }
 
-    static void PlayTouchReaction(const char* emotion, const std::string_view& sound) {
-        Application::GetInstance().Schedule([emotion, sound]() {
-            Board::GetInstance().GetDisplay()->SetEmotion(emotion);
-            Application::GetInstance().PlaySound(sound);
+    // The touch pads used to drive an expression plus a sound clip. That
+    // behaviour is replaced by the KEY 1 eye-scene cycle below. Kept for reference:
+    //
+    // static void PlayTouchReaction(const char* emotion, const std::string_view& sound) {
+    //     Application::GetInstance().Schedule([emotion, sound]() {
+    //         Board::GetInstance().GetDisplay()->SetEmotion(emotion);
+    //         Application::GetInstance().PlaySound(sound);
+    //     });
+    // }
+
+    // KEY 1 cycles the eye scenes; the panels only ever show one scene at a time,
+    // so a single index is enough state.
+    void AdvanceEyeScene() {
+        eye_scene_ = (eye_scene_ + 1) % kEyeSceneCount;
+        ESP_LOGI(TAG, "KEY_1: eye scene %d", eye_scene_);
+        Application::GetInstance().Schedule([this]() { ShowEyeScene(); });
+    }
+
+    void ShowEyeScene() {
+        if (display_ == nullptr) {
+            return;
+        }
+        switch (eye_scene_) {
+            case kEyeSceneShy: {
+                const auto asset = BoardAnimations::Shy();
+                display_->StartAnimation("shy", asset.data, asset.size);
+                break;
+            }
+            case kEyeSceneCuteLaugh: {
+                const auto asset = BoardAnimations::Cute();
+                display_->StartAnimation("cute", asset.data, asset.size);
+                Application::GetInstance().PlaySound(BoardSounds::OGG_SHORT_LAUGH);
+                break;
+            }
+            case kEyeSceneCuteTsundere:
+                // The cute animation keeps looping; only the sound clip changes.
+                Application::GetInstance().PlaySound(BoardSounds::OGG_TSUNDERE);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Power button short press walks the original static expressions.
+    void AdvanceStaticEmotion() {
+        static_emotion_ = (static_emotion_ + 1) % kStaticEmotionCount;
+        const char* emotion = kStaticEmotions[static_emotion_];
+        ESP_LOGI(TAG, "PWR short press: static emotion %s", emotion);
+        Application::GetInstance().Schedule([this, emotion]() {
+            if (display_ != nullptr) {
+                display_->SetEmotion(emotion);
+            }
         });
     }
 
@@ -267,11 +334,16 @@ private:
     }
 
     void InitializeButtons() {
-        touch1_button_.OnClick([]() { PlayTouchReaction("happy", BoardSounds::OGG_SHORT_LAUGH); });
-        touch2_button_.OnClick([]() { PlayTouchReaction("angry", BoardSounds::OGG_TSUNDERE); });
+        // ===== Disabled with the eye-scene rework. Kept for reference. =====
+        // touch1_button_.OnClick([]() { PlayTouchReaction("happy", BoardSounds::OGG_SHORT_LAUGH); });
+        // touch2_button_.OnClick([]() { PlayTouchReaction("angry", BoardSounds::OGG_TSUNDERE); });
+        // key1_button_.OnClick([]() { Application::GetInstance().ToggleChatState(); });
+        // ===================================================================
 
         pwr_button_.OnPressUp([this]() { power_button_released_ = true; });
-        pwr_button_.OnClick([this]() { SetScreenOn(!screen_on_); });
+        // Short press cycles the old static expressions (it used to toggle the
+        // backlight); holding still powers the board off.
+        pwr_button_.OnClick([this]() { AdvanceStaticEmotion(); });
         pwr_button_.OnLongPress([this]() {
             if (!power_button_released_) {
                 ESP_LOGI(TAG, "Ignore power long press held from boot");
@@ -281,7 +353,8 @@ private:
         });
         power_button_released_ = gpio_get_level(PWR_BUTTON_GPIO) != 0;
 
-        key1_button_.OnClick([]() { Application::GetInstance().ToggleChatState(); });
+        // KEY 1: short press cycles scenes, long press keeps the WiFi config toggle.
+        key1_button_.OnClick([this]() { AdvanceEyeScene(); });
         key1_button_.OnLongPress([this]() { ToggleWifiConfig(); });
     }
 

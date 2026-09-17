@@ -896,6 +896,7 @@ set(BOARD_EMBED_FILES "")
 if(CONFIG_BOARD_TYPE_AI_DUAL_EYED_DOLL)
     file(GLOB BOARD_EMBED_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.rgb565.z"
+        "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.anim.z"
         "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.ogg"
     )
 endif()
