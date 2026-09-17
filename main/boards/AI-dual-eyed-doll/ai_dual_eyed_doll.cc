@@ -12,8 +12,9 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <string_view>
 #include <wifi_manager.h>
+#include <atomic>
+#include <string_view>
 
 #include "adc_battery_monitor.h"
 #include "application.h"
@@ -62,7 +63,8 @@ static const gc9d01_lcd_init_cmd_t kGc9d01InitCommands[] = {
     {0x6C, (const uint8_t[]){0x22, 0x02, 0x22, 0x02, 0x22, 0x22, 0x50}, 7, 0},
     {0x6E, (const uint8_t[]){0x03, 0x03, 0x01, 0x01, 0x00, 0x00, 0x0F, 0x0F, 0x0D, 0x0D, 0x0B,
                              0x0B, 0x09, 0x09, 0x00, 0x00, 0x00, 0x00, 0x0A, 0x0A, 0x0C, 0x0C,
-                             0x0E, 0x0E, 0x10, 0x10, 0x00, 0x00, 0x02, 0x02, 0x04, 0x04}, 32, 0},
+                             0x0E, 0x0E, 0x10, 0x10, 0x00, 0x00, 0x02, 0x02, 0x04, 0x04},
+     32, 0},
     {0xBF, (const uint8_t[]){0x01}, 1, 0},
     {0xF9, (const uint8_t[]){0x40}, 1, 0},
     {0x9B, (const uint8_t[]){0x3B}, 1, 0},
@@ -86,33 +88,53 @@ static const gc9d01_lcd_init_cmd_t kGc9d01InitCommands[] = {
 
 class AiDualEyedDollBoard : public WifiBoard {
 private:
-    // KEY 1 walks through these scenes in order and wraps around.
-    enum EyeScene {
-        kEyeSceneShy = 0,
-        kEyeSceneCuteLaugh,
-        kEyeSceneCuteTsundere,
-        kEyeSceneCount,
+    // One scene = one frame-delta animation in the read-only assets partition
+    // plus the embedded Ogg clip that plays when the scene is shown.
+    struct EyeScene {
+        const char* animation;
+        const std::string_view* sound;
     };
 
-    // The eight static expressions that shipped before the animations. The power
-    // button walks this list, so the old eye set is still reachable.
-    static constexpr const char* kStaticEmotions[] = {
-        "cute", "happy", "surprised", "angry", "sad", "sleepy", "shy", "shocked",
+    // KEY 1 walks this list in order and wraps around. The *_blnk assets come
+    // from Pictures/动图/*_blink.gif; the voice clips are the baobao-flavoured
+    // lines (lazy, deadpan young-female TTS voice). Asset names must stay at 15
+    // characters or fewer: CONFIG_MMAP_FILE_NAME_LENGTH is 16, so longer names
+    // are truncated in the assets table and the lookup by exact name fails.
+    static constexpr EyeScene kKey1Scenes[] = {
+        {"shckblnk.anim.z", &BoardSounds::OGG_BAOER_SHOCKED},
+        {"cuteblnk.anim.z", &BoardSounds::OGG_BAOER_CUTE},
+        {"hapyblnk.anim.z", &BoardSounds::OGG_BAOER_HAPPY},
     };
-    static constexpr int kStaticEmotionCount =
-        static_cast<int>(sizeof(kStaticEmotions) / sizeof(kStaticEmotions[0]));
+    static constexpr int kKey1SceneCount =
+        static_cast<int>(sizeof(kKey1Scenes) / sizeof(kKey1Scenes[0]));
+
+    // The power button walks this list: the cute/happy/sad crop animations
+    // together with the lanmeng-flavoured voice clips (lively young-female
+    // TTS voice). Holding still still powers the board off.
+    static constexpr EyeScene kPowerScenes[] = {
+        {"cute.anim.z", &BoardSounds::OGG_LANMENG_CUTE},
+        {"happy.anim.z", &BoardSounds::OGG_LANMENG_HAPPY},
+        {"sad.anim.z", &BoardSounds::OGG_LANMENG_SAD},
+    };
+    static constexpr int kPowerSceneCount =
+        static_cast<int>(sizeof(kPowerScenes) / sizeof(kPowerScenes[0]));
 
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     DualEyeDisplay* display_ = nullptr;
     AdcBatteryMonitor* battery_monitor_ = nullptr;
+    // Plays the scene sound away from the main task, see SceneSoundLoop().
+    TaskHandle_t scene_sound_task_ = nullptr;
     Button key1_button_;
     Button pwr_button_;
     Button touch1_button_;
     Button touch2_button_;
     bool screen_on_ = true;
     bool power_button_released_ = false;
-    int eye_scene_ = -1;  // -1 so the first KEY 1 press lands on kEyeSceneShy.
-    int static_emotion_ = -1;  // -1 so the first power click lands on kStaticEmotions[0].
+    int key1_scene_ = -1;    // -1 so the first KEY 1 press lands on kKey1Scenes[0].
+    int power_scene_ = -1;   // -1 so the first power click lands on kPowerScenes[0].
+    bool scene_audio_enabled_ = true;  // KEY 1 long press toggles this.
+    // Scene sound the eye_sound task should play next; read after the notify.
+    std::atomic<const std::string_view*> pending_sound_{nullptr};
 
     void ConfigureWakeAndPowerOff() {
         rtc_gpio_init(PWR_BUTTON_GPIO);
@@ -181,72 +203,102 @@ private:
         ConfigureWakeAndPowerOff();
     }
 
-    void ToggleWifiConfig() {
-        if (IsInWifiConfigMode()) {
-            ESP_LOGI(TAG, "KEY_1 long press: exit WiFi config");
-            WifiManager::GetInstance().StopConfigAp();
-            in_config_mode_ = false;
-            Application::GetInstance().DismissAlert();
-            TryWifiConnect();
-            return;
-        }
-        ESP_LOGI(TAG, "KEY_1 long press: enter WiFi config");
-        EnterWifiConfigMode();
-    }
+    // KEY 1 long press now toggles the scene voice clips instead of the WiFi
+    // config AP; the no-SSID boot provisioning path is untouched.
 
-    // The touch pads used to drive an expression plus a sound clip. That
-    // behaviour is replaced by the KEY 1 eye-scene cycle below. Kept for reference:
+    // KEY 1 cycles shocked_blink -> cute_blink -> happy_blink, and every press
+    // restarts both the animation and the matching voice clip from the
+    // beginning. So a press made while nothing is playing gets picture and
+    // sound in the same instant, and a press made while the previous scene is
+    // still running is never swallowed: the animation cuts over immediately and
+    // the sound restarts as soon as the previous clip's push into the audio
+    // queue has drained.
     //
-    // static void PlayTouchReaction(const char* emotion, const std::string_view& sound) {
-    //     Application::GetInstance().Schedule([emotion, sound]() {
-    //         Board::GetInstance().GetDisplay()->SetEmotion(emotion);
-    //         Application::GetInstance().PlaySound(sound);
-    //     });
-    // }
-
-    // KEY 1 cycles the eye scenes; the panels only ever show one scene at a time,
-    // so a single index is enough state.
-    void AdvanceEyeScene() {
-        eye_scene_ = (eye_scene_ + 1) % kEyeSceneCount;
-        ESP_LOGI(TAG, "KEY_1: eye scene %d", eye_scene_);
-        Application::GetInstance().Schedule([this]() { ShowEyeScene(); });
+    // The power button does the same over its own cute -> happy -> sad list.
+    // Both button handlers only pick the next scene and poke the sound task;
+    // the panels and the audio queue are touched from the scheduled closures
+    // and the sound task respectively.
+    void AdvanceKey1Scene() {
+        key1_scene_ = (key1_scene_ + 1) % kKey1SceneCount;
+        StartScene(kKey1Scenes[key1_scene_], "KEY_1");
     }
 
-    void ShowEyeScene() {
-        if (display_ == nullptr) {
+    void AdvancePowerScene() {
+        power_scene_ = (power_scene_ + 1) % kPowerSceneCount;
+        StartScene(kPowerScenes[power_scene_], "PWR");
+    }
+
+    void StartScene(const EyeScene& scene, const char* source) {
+        ESP_LOGI(TAG, "%s scene: %s", source, scene.animation);
+        Application::GetInstance().Schedule([this, scene]() {
+            if (display_ == nullptr) {
+                return;
+            }
+            const auto asset = BoardAnimations::Get(scene.animation);
+            if (asset.data == nullptr) {
+                ESP_LOGE(TAG, "Eye scene %s is missing from the assets partition",
+                         scene.animation);
+                return;
+            }
+            // The animation restarts from its first frame here, on the main
+            // task, so the press is visible immediately even while the previous
+            // scene or its sound clip is still running.
+            display_->StartAnimation(scene.animation, asset.data, asset.size);
+        });
+        pending_sound_.store(scene.sound, std::memory_order_relaxed);
+        if (scene_sound_task_ != nullptr) {
+            xTaskNotifyGive(scene_sound_task_);
+        }
+    }
+
+    static void SceneSoundTaskEntry(void* arg) {
+        static_cast<AiDualEyedDollBoard*>(arg)->SceneSoundLoop();
+    }
+
+    // AudioService::PlaySound() pushes the whole clip into a decode queue that
+    // is only MAX_DECODE_PACKETS_IN_QUEUE deep (2400ms of audio) and blocks its
+    // caller whenever the queue is full. The scene clips run up to ~3s, so
+    // calling it from the main task would freeze button handling and the event
+    // loop for a second or more - the exact opposite of "every press gets a
+    // response".
+    //
+    // This task owns the playback instead. The notification coalesces, so a
+    // burst of presses ends in a single restart rather than a queue of clips.
+    void SceneSoundLoop() {
+        while (true) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            if (!scene_audio_enabled_) {
+                continue;
+            }
+            const auto* sound = pending_sound_.load(std::memory_order_relaxed);
+            if (sound == nullptr) {
+                continue;
+            }
+            auto& audio = Application::GetInstance().GetAudioService();
+            // Clear anything left over from an earlier press, otherwise the old
+            // clip would still be in front of the new animation.
+            audio.ResetDecoder();
+            audio.PlaySound(*sound);
+        }
+    }
+
+    // KEY 1 long press: mute or unmute the scene voice clips. Switching back on
+    // plays tsundere.ogg as confirmation; switching off resets the decoder so
+    // the clip that is currently playing stops promptly.
+    void ToggleSceneAudio() {
+        scene_audio_enabled_ = !scene_audio_enabled_;
+        ESP_LOGI(TAG, "KEY_1 long press: scene audio %s",
+                 scene_audio_enabled_ ? "on" : "off");
+        if (!scene_audio_enabled_) {
+            Application::GetInstance().Schedule([this]() {
+                Application::GetInstance().GetAudioService().ResetDecoder();
+            });
             return;
         }
-        switch (eye_scene_) {
-            case kEyeSceneShy: {
-                const auto asset = BoardAnimations::Shy();
-                display_->StartAnimation("shy", asset.data, asset.size);
-                break;
-            }
-            case kEyeSceneCuteLaugh: {
-                const auto asset = BoardAnimations::Cute();
-                display_->StartAnimation("cute", asset.data, asset.size);
-                Application::GetInstance().PlaySound(BoardSounds::OGG_SHORT_LAUGH);
-                break;
-            }
-            case kEyeSceneCuteTsundere:
-                // The cute animation keeps looping; only the sound clip changes.
-                Application::GetInstance().PlaySound(BoardSounds::OGG_TSUNDERE);
-                break;
-            default:
-                break;
+        pending_sound_.store(&BoardSounds::OGG_TSUNDERE, std::memory_order_relaxed);
+        if (scene_sound_task_ != nullptr) {
+            xTaskNotifyGive(scene_sound_task_);
         }
-    }
-
-    // Power button short press walks the original static expressions.
-    void AdvanceStaticEmotion() {
-        static_emotion_ = (static_emotion_ + 1) % kStaticEmotionCount;
-        const char* emotion = kStaticEmotions[static_emotion_];
-        ESP_LOGI(TAG, "PWR short press: static emotion %s", emotion);
-        Application::GetInstance().Schedule([this, emotion]() {
-            if (display_ != nullptr) {
-                display_->SetEmotion(emotion);
-            }
-        });
     }
 
     void InitializeI2c() {
@@ -304,8 +356,8 @@ private:
 
         gc9d01_vendor_config_t vendor_config = {
             .init_cmds = kGc9d01InitCommands,
-            .init_cmds_size = static_cast<uint16_t>(sizeof(kGc9d01InitCommands) /
-                                                    sizeof(kGc9d01InitCommands[0])),
+            .init_cmds_size =
+                static_cast<uint16_t>(sizeof(kGc9d01InitCommands) / sizeof(kGc9d01InitCommands[0])),
         };
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_NC;
@@ -334,16 +386,14 @@ private:
     }
 
     void InitializeButtons() {
-        // ===== Disabled with the eye-scene rework. Kept for reference. =====
-        // touch1_button_.OnClick([]() { PlayTouchReaction("happy", BoardSounds::OGG_SHORT_LAUGH); });
-        // touch2_button_.OnClick([]() { PlayTouchReaction("angry", BoardSounds::OGG_TSUNDERE); });
-        // key1_button_.OnClick([]() { Application::GetInstance().ToggleChatState(); });
-        // ===================================================================
+        // The two touch pads and the original KEY 1 chat toggle were switched off
+        // when KEY 1 was reworked into the animation cycle; the pads have no
+        // handler any more and KEY 1 short press advances the scene instead.
 
         pwr_button_.OnPressUp([this]() { power_button_released_ = true; });
-        // Short press cycles the old static expressions (it used to toggle the
-        // backlight); holding still powers the board off.
-        pwr_button_.OnClick([this]() { AdvanceStaticEmotion(); });
+        // Short press cycles the cute/happy/sad scenes with their voice clips;
+        // holding still powers the board off (unchanged).
+        pwr_button_.OnClick([this]() { AdvancePowerScene(); });
         pwr_button_.OnLongPress([this]() {
             if (!power_button_released_) {
                 ESP_LOGI(TAG, "Ignore power long press held from boot");
@@ -353,9 +403,20 @@ private:
         });
         power_button_released_ = gpio_get_level(PWR_BUTTON_GPIO) != 0;
 
-        // KEY 1: short press cycles scenes, long press keeps the WiFi config toggle.
-        key1_button_.OnClick([this]() { AdvanceEyeScene(); });
-        key1_button_.OnLongPress([this]() { ToggleWifiConfig(); });
+        // KEY 1: short press cycles scenes, long press mutes/unmutes the scene
+        // voice clips. (This replaces the old WiFi config toggle; the board
+        // still provisions normally on first boot without a saved SSID.)
+        key1_button_.OnClick([this]() { AdvanceKey1Scene(); });
+        key1_button_.OnLongPress([this]() { ToggleSceneAudio(); });
+
+        // Core 1 keeps this next to the audio and protocol tasks. It blocks on the
+        // notification nearly all the time, so its low priority and 6KB stack only
+        // matter while a clip is being demuxed.
+        if (xTaskCreatePinnedToCore(SceneSoundTaskEntry, "eye_sound", 6144, this, 3,
+                                    &scene_sound_task_, 1) != pdPASS) {
+            scene_sound_task_ = nullptr;
+            ESP_LOGE(TAG, "Failed to create the scene sound task; scenes will be silent");
+        }
     }
 
     void InitializeBattery() {

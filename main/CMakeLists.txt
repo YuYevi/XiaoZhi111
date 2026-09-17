@@ -892,11 +892,15 @@ else()
 endif()
 list(APPEND SOURCES ${BOARD_SOURCES})
 
+# Files embedded into the app image. The dual-eyed doll animations are
+# deliberately absent: four 160x160 clips need about 1MB and the 3MB app
+# partition is already full to within a few hundred bytes, so they are packed
+# into the separate "assets" partition instead. See the
+# spiffs_create_partition_assets() call further down.
 set(BOARD_EMBED_FILES "")
 if(CONFIG_BOARD_TYPE_AI_DUAL_EYED_DOLL)
     file(GLOB BOARD_EMBED_FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.rgb565.z"
-        "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.anim.z"
         "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/assets/*.ogg"
     )
 endif()
@@ -1123,6 +1127,29 @@ if(CONFIG_USE_LVGL AND BUILTIN_TEXT_FONT)
     )
 endif()
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ${MAIN_COMPILE_DEFINITIONS})
+
+# Eye animations for the AI-dual-eyed-doll live in the read-only "assets"
+# partition rather than in the app image: four 160x160 frame-delta clips need
+# about 1MB, which does not fit next to the firmware in the 3MB app partition.
+# The image is generated at build time from partition_assets/ and mmapped at
+# runtime by main/boards/AI-dual-eyed-doll/board_animations.cc.
+#
+# Regenerate the assets themselves with:
+#   python3 scripts/dual_eye_anim/pack_eye_anim.py <gifs> \
+#       --out-dir main/boards/AI-dual-eyed-doll/partition_assets --frame-step 3
+#
+# FLASH_IN_PROJECT also registers the image with the flash arguments, so both
+# `idf.py flash` and `idf.py merge-bin` (and therefore scripts/release.py) carry
+# it without any extra project changes.
+if(CONFIG_BOARD_TYPE_AI_DUAL_EYED_DOLL)
+    spiffs_create_partition_assets(
+        assets
+        "${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/partition_assets"
+        FLASH_IN_PROJECT
+        MMAP_FILE_SUPPORT_FORMAT ".anim.z"
+        IMPORT_INC_PATH "${CMAKE_BINARY_DIR}/mmap_build"
+    )
+endif()
 
 # Add generation rules
 add_custom_command(

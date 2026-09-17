@@ -27,8 +27,8 @@ public:
 
     // Frame-delta animations packed by scripts/dual_eye_anim/pack_eye_anim.py.
     // Loops until StopAnimation(), another drawing call, or power save.
-    // `data` must stay valid for as long as the animation runs, which embedded
-    // assets guarantee.
+    // `data` must stay valid for as long as the animation runs, which is what the
+    // mmapped assets partition in board_animations.cc provides.
     bool StartAnimation(const char* name, const void* data, size_t size);
     void StopAnimation();
     bool IsAnimationRunning() const { return animation_run_; }
@@ -50,8 +50,8 @@ private:
 
     bool DrawEmotion(const char* emotion);
     static const char* MapEmotion(const char* emotion);
-    static bool OnFlushDone(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t* edata,
-                            void* user_ctx);
+    static bool OnFlushDone(esp_lcd_panel_io_handle_t panel_io,
+                            esp_lcd_panel_io_event_data_t* edata, void* user_ctx);
     bool WaitFlush();
 
     bool Inflate(const uint8_t* start, size_t size, uint8_t* dest, size_t dest_len);

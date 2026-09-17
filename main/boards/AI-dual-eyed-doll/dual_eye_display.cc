@@ -65,7 +65,8 @@ bool DualEyeDisplay::Inflate(const uint8_t* start, size_t size, uint8_t* dest, s
     // tinfl_decompress_mem_to_mem() keeps tinfl_decompressor on the caller's stack (~4KB+).
     // Board init runs on the 8KB main task, so that overflows and reboots with StoreProhibited.
     if (inflater_ == nullptr) {
-        inflater_ = heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        inflater_ =
+            heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (inflater_ == nullptr) {
             inflater_ = malloc(sizeof(tinfl_decompressor));
         }
@@ -91,16 +92,19 @@ bool DualEyeDisplay::Inflate(const uint8_t* start, size_t size, uint8_t* dest, s
 }
 
 DualEyeDisplay::DualEyeDisplay(esp_lcd_panel_io_handle_t left_io, esp_lcd_panel_handle_t left_panel,
-                               esp_lcd_panel_io_handle_t right_io, esp_lcd_panel_handle_t right_panel)
+                               esp_lcd_panel_io_handle_t right_io,
+                               esp_lcd_panel_handle_t right_panel)
     : left_panel_(left_panel), right_panel_(right_panel) {
     width_ = DISPLAY_WIDTH;
     height_ = DISPLAY_HEIGHT;
     mutex_ = xSemaphoreCreateMutex();
     flush_done_ = xSemaphoreCreateBinary();
     animation_stopped_ = xSemaphoreCreateBinary();
-    frame_ = static_cast<uint16_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    frame_ =
+        static_cast<uint16_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     if (frame_ == nullptr) {
-        frame_ = static_cast<uint16_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_SPIRAM));
+        frame_ =
+            static_cast<uint16_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_SPIRAM));
     }
     if (frame_ == nullptr) {
         ESP_LOGE(TAG, "Failed to allocate eye frame buffer");
@@ -149,7 +153,8 @@ bool DualEyeDisplay::Lock(int timeout_ms) {
     if (mutex_ == nullptr) {
         return true;
     }
-    return xSemaphoreTake(mutex_, pdMS_TO_TICKS(timeout_ms > 0 ? timeout_ms : portMAX_DELAY)) == pdTRUE;
+    return xSemaphoreTake(mutex_, pdMS_TO_TICKS(timeout_ms > 0 ? timeout_ms : portMAX_DELAY)) ==
+           pdTRUE;
 }
 
 void DualEyeDisplay::Unlock() {
@@ -158,7 +163,8 @@ void DualEyeDisplay::Unlock() {
     }
 }
 
-bool DualEyeDisplay::OnFlushDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*, void* user_ctx) {
+bool DualEyeDisplay::OnFlushDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t*,
+                                 void* user_ctx) {
     auto* self = static_cast<DualEyeDisplay*>(user_ctx);
     BaseType_t hp_task = pdFALSE;
     xSemaphoreGiveFromISR(self->flush_done_, &hp_task);
@@ -208,12 +214,14 @@ const char* DualEyeDisplay::MapEmotion(const char* emotion) {
 
 void DualEyeDisplay::DrawFrameToPanels() {
     xSemaphoreTake(flush_done_, 0);
-    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(left_panel_, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, frame_));
+    ESP_ERROR_CHECK(
+        esp_lcd_panel_draw_bitmap(left_panel_, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, frame_));
     if (!WaitFlush()) {
         ESP_LOGW(TAG, "Left eye flush timeout");
     }
     xSemaphoreTake(flush_done_, 0);
-    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(right_panel_, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, frame_));
+    ESP_ERROR_CHECK(
+        esp_lcd_panel_draw_bitmap(right_panel_, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, frame_));
     if (!WaitFlush()) {
         ESP_LOGW(TAG, "Right eye flush timeout");
     }
@@ -285,10 +293,12 @@ bool DualEyeDisplay::StartAnimation(const char* name, const void* data, size_t s
         return false;
     }
     if (delta_ == nullptr) {
-        delta_ = static_cast<uint8_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        delta_ =
+            static_cast<uint8_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     }
     if (accum_ == nullptr) {
-        accum_ = static_cast<uint8_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        accum_ =
+            static_cast<uint8_t*>(heap_caps_malloc(EYE_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     }
     if (delta_ == nullptr || accum_ == nullptr) {
         ESP_LOGE(TAG, "Failed to allocate animation buffers");
@@ -303,8 +313,8 @@ bool DualEyeDisplay::StartAnimation(const char* name, const void* data, size_t s
 
     // Core 0 keeps the ~20ms of SPI flushing per frame away from the audio task
     // on core 1. Priority 4 stays below the audio and protocol tasks.
-    if (xTaskCreatePinnedToCore(AnimationTaskEntry, "eye_anim", 4096, this, 4, &animation_task_, 0) !=
-        pdPASS) {
+    if (xTaskCreatePinnedToCore(AnimationTaskEntry, "eye_anim", 4096, this, 4, &animation_task_,
+                                0) != pdPASS) {
         animation_run_ = false;
         animation_task_ = nullptr;
         animation_name_ = nullptr;
@@ -314,7 +324,8 @@ bool DualEyeDisplay::StartAnimation(const char* name, const void* data, size_t s
         return false;
     }
 
-    ESP_LOGI(TAG, "Animation %s started (%u frames, %u ms)", name, header.frame_count, header.delay_ms);
+    ESP_LOGI(TAG, "Animation %s started (%u frames, %u ms)", name, header.frame_count,
+             header.delay_ms);
     return true;
 }
 
@@ -323,11 +334,18 @@ void DualEyeDisplay::StopAnimation() {
         return;
     }
     animation_run_ = false;
-    if (animation_stopped_ != nullptr && animation_task_ != nullptr) {
-        // The task checks animation_run_ once per frame, so one frame period
-        // plus a flush is the normal hand-off time.
-        if (xSemaphoreTake(animation_stopped_, pdMS_TO_TICKS(500)) != pdTRUE) {
-            ESP_LOGW(TAG, "Animation task did not stop in time");
+    if (animation_task_ != nullptr) {
+        // Wake the task out of its frame delay. Without this the caller would
+        // wait up to a whole frame period (90ms for the shipped clips) before
+        // the panels are handed over, which is exactly the delay a button press
+        // must not have.
+        xTaskNotifyGive(animation_task_);
+        if (animation_stopped_ != nullptr) {
+            // The task checks animation_run_ once per frame, so one frame period
+            // plus a flush is the normal hand-off time.
+            if (xSemaphoreTake(animation_stopped_, pdMS_TO_TICKS(500)) != pdTRUE) {
+                ESP_LOGW(TAG, "Animation task did not stop in time");
+            }
         }
     }
     animation_task_ = nullptr;
@@ -364,7 +382,8 @@ void DualEyeDisplay::AnimationLoop() {
     AnimationHeader header{};
     memcpy(&header, base, sizeof(header));
 
-    const size_t data_offset = ANIM_HEADER_SIZE + static_cast<size_t>(header.frame_count) * sizeof(uint32_t);
+    const size_t data_offset =
+        ANIM_HEADER_SIZE + static_cast<size_t>(header.frame_count) * sizeof(uint32_t);
     const auto* table = reinterpret_cast<const uint32_t*>(base + ANIM_HEADER_SIZE);
     const TickType_t period = pdMS_TO_TICKS(header.delay_ms);
     const char* name = animation_name_;
@@ -384,7 +403,22 @@ void DualEyeDisplay::AnimationLoop() {
             }
             offset += table[index];
             DrawFrameToPanels();
-            vTaskDelayUntil(&last_wake, period);
+
+            // Sleep out the rest of this frame's period. StopAnimation() pokes the
+            // task so a button press ends the wait immediately instead of waiting
+            // for the delay to expire.
+            const TickType_t deadline = last_wake + period;
+            const TickType_t now = xTaskGetTickCount();
+            if (now < deadline) {
+                ulTaskNotifyTake(pdTRUE, deadline - now);
+            }
+
+            // Keep the cadence, but resync after a slow flush instead of running
+            // the missed frames back to back.
+            last_wake = xTaskGetTickCount();
+            if (last_wake < deadline) {
+                last_wake = deadline;
+            }
         }
     }
 
