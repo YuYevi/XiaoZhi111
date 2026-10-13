@@ -1056,14 +1056,16 @@ static void isp_task(void *p)
         }
         print_stats_info(&isp->ipa_stats);
 
+        _lock_acquire(&s_isp_lock);
         isp->metadata.flags = 0;
         ret = esp_ipa_pipeline_process(isp->ipa_pipeline, &isp->ipa_stats, &isp->sensor, &isp->metadata);
+        if (ret == ESP_OK) {
+            config_isp_and_camera(isp, &isp->metadata);
+        }
+        _lock_release(&s_isp_lock);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "failed to process image algorithm");
-            continue;
         }
-
-        config_isp_and_camera(isp, &isp->metadata);
     }
 
     vTaskDelete(NULL);
@@ -1966,6 +1968,130 @@ esp_err_t esp_video_isp_pipeline_get_agc_min_exposure(uint32_t *exposure_us)
     _lock_acquire(&s_isp_lock);
     if (s_esp_video_isp) {
         ret = esp_ipa_pipeline_ioctl(s_esp_video_isp->ipa_pipeline, ESP_IPA_AGC_G_MIN_EXPOSURE, exposure_us);
+    } else {
+        ESP_LOGD(TAG, "ISP controller is not initialized");
+    }
+    _lock_release(&s_isp_lock);
+
+    return ret;
+}
+
+/**
+ * @brief Get int32_t type IPA environment variable.
+ *
+ * @param name  Environment variable name
+ * @param val   Pointer to store int32_t type environment variable
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_NOT_FOUND if the variable does not exist
+ *      - Others if failed
+ */
+esp_err_t esp_video_isp_pipeline_get_env_int32(const char *name, int32_t *val)
+{
+    esp_err_t ret = ESP_ERR_INVALID_STATE;
+
+    ESP_RETURN_ON_FALSE(name && val, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
+
+    _lock_acquire(&s_isp_lock);
+    if (s_esp_video_isp && s_esp_video_isp->ipa_pipeline &&
+            s_esp_video_isp->ipa_pipeline->ipa_array) {
+        esp_ipa_t *ipa = s_esp_video_isp->ipa_pipeline->ipa_array[0];
+
+        if (!esp_ipa_has_var(ipa, name)) {
+            ret = ESP_ERR_NOT_FOUND;
+        } else {
+            *val = esp_ipa_get_int32(ipa, name);
+            ret = ESP_OK;
+        }
+    } else {
+        ESP_LOGD(TAG, "ISP controller is not initialized");
+    }
+    _lock_release(&s_isp_lock);
+
+    return ret;
+}
+
+/**
+ * @brief Get float type IPA environment variable.
+ *
+ * @param name  Environment variable name
+ * @param val   Pointer to store float type environment variable
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_NOT_FOUND if the variable does not exist
+ *      - Others if failed
+ */
+esp_err_t esp_video_isp_pipeline_get_env_float(const char *name, float *val)
+{
+    esp_err_t ret = ESP_ERR_INVALID_STATE;
+
+    ESP_RETURN_ON_FALSE(name && val, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
+
+    _lock_acquire(&s_isp_lock);
+    if (s_esp_video_isp && s_esp_video_isp->ipa_pipeline &&
+            s_esp_video_isp->ipa_pipeline->ipa_array) {
+        esp_ipa_t *ipa = s_esp_video_isp->ipa_pipeline->ipa_array[0];
+
+        if (!esp_ipa_has_var(ipa, name)) {
+            ret = ESP_ERR_NOT_FOUND;
+        } else {
+            *val = esp_ipa_get_float(ipa, name);
+            ret = ESP_OK;
+        }
+    } else {
+        ESP_LOGD(TAG, "ISP controller is not initialized");
+    }
+    _lock_release(&s_isp_lock);
+
+    return ret;
+}
+
+/**
+ * @brief Enumerate IPA configurations of the same sensor.
+ *
+ * @param sensor_name Sensor name
+ * @param index       Zero-based index among configurations of this sensor
+ *
+ * @return IPA configuration pointer if found, or NULL if sensor is not supported or index is out of range
+ */
+const esp_ipa_config_t *esp_video_isp_pipeline_enum_ipa_configs(const char *sensor_name, int index)
+{
+    return esp_ipa_pipeline_enum_configs(sensor_name, index);
+}
+
+/**
+ * @brief Rebuild IPA modules from a new configuration and apply init metadata to ISP/camera.
+ *
+ * @note This function serializes with the ISP pipeline task. `config->nums` and
+ *       `config->names[i]` must match the modules loaded at create time.
+ * @note ESP_OK only means the JSON configuration was switched and parameters were
+ *       issued to hardware. Whether the hardware is correctly programmed with the
+ *       new parameters must be confirmed from runtime logs.
+ *
+ * @param config New IPA configuration
+ *
+ * @return
+ *      - ESP_OK if JSON was switched and parameters were issued to hardware
+ *      - Others if failed
+ */
+esp_err_t esp_video_isp_pipeline_set_ipa_config(const esp_ipa_config_t *config)
+{
+    esp_err_t ret = ESP_ERR_INVALID_STATE;
+    esp_ipa_metadata_t metadata = {0};
+
+    ESP_RETURN_ON_FALSE(config, ESP_ERR_INVALID_ARG, TAG, "config is NULL");
+
+    _lock_acquire(&s_isp_lock);
+    if (s_esp_video_isp && s_esp_video_isp->ipa_pipeline) {
+        ret = esp_ipa_pipeline_set_config(s_esp_video_isp->ipa_pipeline, config,
+                                          &s_esp_video_isp->sensor, &metadata);
+        if (ret == ESP_OK) {
+            config_isp_and_camera(s_esp_video_isp, &metadata);
+            ESP_LOGD(TAG, "switched IPA config description=%s",
+                     config->description ? config->description : "");
+        }
     } else {
         ESP_LOGD(TAG, "ISP controller is not initialized");
     }

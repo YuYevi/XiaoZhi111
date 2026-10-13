@@ -8,7 +8,7 @@ description: ESP LCD & Touch AXS15231B
 issues: https://github.com/espressif/esp-iot-solution/issues
 repository: git://github.com/espressif/esp-iot-solution.git
 repository_info:
-  commit_sha: 40106e7fdcf95e54607b4c7ecfc9b5ecb4e78de4
+  commit_sha: 2d289eb1f14431e345b345c3fd6fc299a555d770
   path: components/display/lcd/esp_lcd_axs15231b
 url: https://github.com/espressif/esp-iot-solution/tree/master/components/display/lcd/esp_lcd_axs15231b
-version: 2.1.0
+version: 2.1.1

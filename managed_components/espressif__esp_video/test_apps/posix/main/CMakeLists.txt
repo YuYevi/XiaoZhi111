@@ -1,10 +1,14 @@
-set(srcs "test_app_main.c" "test_posix_v4l2.c" "test_storage.c")
+set(srcs "test_app_main.c" "test_posix_v4l2.c" "test_storage.c" "test_sensor_format.c")
 set(includes "." "../../../private_include")
 set(requires "unity" "test_utils" "esp_video" "esp_timer")
 
 if (CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE)
     list(APPEND srcs "test_format_convert.c" "test_event.c")
     list(APPEND requires "esp_hal_cam")
+endif()
+
+if (CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE)
+    list(APPEND srcs "test_dvp_format.c")
 endif()
 
 if (CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE)

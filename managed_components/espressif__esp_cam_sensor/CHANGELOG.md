@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.6.0
+
+- Added a Kconfig option to control the SC101 SCCB access delay after power-on.
+- Removed the unused Reset pin in the SC101 driver.
+- Added a column for notes to the list of supported camera sensors.
+- Added GC4053 MIPI RAW sensor driver.
+- Added MIT245 MIPI RAW sensor driver.
+- Added 1280x960 format support in the driver of SC121AT.
+- Added GC032A DVP YUV sensor driver.
+
+## 2.5.0
+
+- Added SC2337P MIPI RAW sensor driver.
+- Added BF3031 DVP YUV sensor driver.
+- Added SC132GS MIPI RAW sensor driver.
+- Reordered camera sensors in Kconfig and README.md.
+- Added 720p binning mode support to the OS04C10 driver.
+- Added GC2053 MIPI RAW sensor driver.
+- Added TC358743 HDMI-to-MIPI-CSI bridge driver.
+- Added a Kconfig option to control the OV5640 SCCB access delay after power-on.
+
 ## 2.4.0
 - Added SC2331 MIPI RAW sensor driver.
 - Added OV3640 DVP JPEG sensor driver.

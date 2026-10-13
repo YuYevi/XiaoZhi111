@@ -56,6 +56,12 @@ if(CONFIG_CAMERA_SC2336)
     list(APPEND priv_include_dirs "sensors/sc2336/private_include")
 endif()
 
+if(CONFIG_CAMERA_SC2337P)
+    list(APPEND srcs "sensors/sc2337p/sc2337p.c")
+    list(APPEND include_dirs "sensors/sc2337p/include")
+    list(APPEND priv_include_dirs "sensors/sc2337p/private_include")
+endif()
+
 if(CONFIG_CAMERA_SC1346)
     list(APPEND srcs "sensors/sc1346/sc1346.c")
     list(APPEND include_dirs "sensors/sc1346/include")
@@ -86,6 +92,18 @@ if(CONFIG_CAMERA_GC0308)
     list(APPEND priv_include_dirs "sensors/gc0308/private_include")
 endif()
 
+if(CONFIG_CAMERA_GC032A)
+    list(APPEND srcs "sensors/gc032a/gc032a.c")
+    list(APPEND include_dirs "sensors/gc032a/include")
+    list(APPEND priv_include_dirs "sensors/gc032a/private_include")
+endif()
+
+if(CONFIG_CAMERA_GC2053)
+    list(APPEND srcs "sensors/gc2053/gc2053.c")
+    list(APPEND include_dirs "sensors/gc2053/include")
+    list(APPEND priv_include_dirs "sensors/gc2053/private_include")
+endif()
+
 if(CONFIG_CAMERA_GC2145)
     list(APPEND srcs "sensors/gc2145/gc2145.c")
     list(APPEND include_dirs "sensors/gc2145/include")
@@ -96,6 +114,12 @@ if(CONFIG_CAMERA_GC2607)
     list(APPEND srcs "sensors/gc2607/gc2607.c")
     list(APPEND include_dirs "sensors/gc2607/include")
     list(APPEND priv_include_dirs "sensors/gc2607/private_include")
+endif()
+
+if(CONFIG_CAMERA_GC4053)
+    list(APPEND srcs "sensors/gc4053/gc4053.c")
+    list(APPEND include_dirs "sensors/gc4053/include")
+    list(APPEND priv_include_dirs "sensors/gc4053/private_include")
 endif()
 
 if(CONFIG_CAMERA_LT6911)
@@ -126,6 +150,12 @@ if(CONFIG_CAMERA_SC101IOT)
     list(APPEND srcs "sensors/sc101iot/sc101iot.c")
     list(APPEND include_dirs "sensors/sc101iot/include")
     list(APPEND priv_include_dirs "sensors/sc101iot/private_include")
+endif()
+
+if(CONFIG_CAMERA_SC132GS)
+    list(APPEND srcs "sensors/sc132gs/sc132gs.c")
+    list(APPEND include_dirs "sensors/sc132gs/include")
+    list(APPEND priv_include_dirs "sensors/sc132gs/private_include")
 endif()
 
 if(CONFIG_CAMERA_SC030IOT)
@@ -176,6 +206,12 @@ if(CONFIG_CAMERA_MIRA220)
     list(APPEND priv_include_dirs "sensors/mira220/private_include")
 endif()
 
+if(CONFIG_CAMERA_MIT245)
+    list(APPEND srcs "sensors/mit245/mit245.c")
+    list(APPEND include_dirs "sensors/mit245/include")
+    list(APPEND priv_include_dirs "sensors/mit245/private_include")
+endif()
+
 if(CONFIG_CAMERA_BF3A03)
     list(APPEND srcs "sensors/bf3a03/bf3a03.c")
     list(APPEND include_dirs "sensors/bf3a03/include")
@@ -186,6 +222,12 @@ if(CONFIG_CAMERA_BF20A6)
     list(APPEND srcs "sensors/bf20a6/bf20a6.c")
     list(APPEND include_dirs "sensors/bf20a6/include")
     list(APPEND priv_include_dirs "sensors/bf20a6/private_include")
+endif()
+
+if(CONFIG_CAMERA_BF3031)
+    list(APPEND srcs "sensors/bf3031/bf3031.c")
+    list(APPEND include_dirs "sensors/bf3031/include")
+    list(APPEND priv_include_dirs "sensors/bf3031/private_include")
 endif()
 
 if(CONFIG_CAMERA_SP0A39)
@@ -224,6 +266,12 @@ if(CONFIG_CAMERA_ARDUCAM_IMX500)
     list(APPEND priv_include_dirs "sensors/arducam/imx500/private_include")
 endif()
 
+if(CONFIG_CAMERA_TC358743)
+    list(APPEND srcs "sensors/tc358743/tc358743.c")
+    list(APPEND include_dirs "sensors/tc358743/include")
+    list(APPEND priv_include_dirs "sensors/tc358743/private_include")
+endif()
+
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS ${include_dirs}
                        PRIV_INCLUDE_DIRS ${priv_include_dirs}
@@ -260,6 +308,10 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sc2336_detect")
     endif()
 
+    if(CONFIG_CAMERA_SC2337P_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sc2337p_detect")
+    endif()
+
     if(CONFIG_CAMERA_STI2250_AUTO_DETECT)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sti2250_detect")
     endif()
@@ -272,6 +324,14 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc0308_detect")
     endif()
 
+    if(CONFIG_CAMERA_GC032A_AUTO_DETECT_DVP_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc032a_detect")
+    endif()
+
+    if(CONFIG_CAMERA_GC2053_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc2053_detect")
+    endif()
+
     if(CONFIG_CAMERA_GC2145_AUTO_DETECT_MIPI_INTERFACE_SENSOR OR CONFIG_CAMERA_GC2145_AUTO_DETECT_DVP_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc2145_detect")
     endif()
@@ -280,6 +340,10 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc2607_detect")
     endif()
 
+    if(CONFIG_CAMERA_GC4053_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u gc4053_detect")
+    endif()
+    
     if(CONFIG_CAMERA_LT6911_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u lt6911_detect")
     endif()
@@ -302,6 +366,10 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
 
     if(CONFIG_CAMERA_SC030IOT_AUTO_DETECT_DVP_INTERFACE_SENSOR OR CONFIG_CAMERA_SC030IOT_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sc030iot_detect")
+    endif()
+
+    if(CONFIG_CAMERA_SC132GS_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sc132gs_detect")
     endif()
 
     if(CONFIG_CAMERA_OV2710_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
@@ -336,12 +404,20 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u mira220_detect")
     endif()
 
+    if(CONFIG_CAMERA_MIT245_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u mit245_detect")
+    endif()
+
     if(CONFIG_CAMERA_SC121AT_AUTO_DETECT_MIPI_INTERFACE_SENSOR OR CONFIG_CAMERA_SC121AT_AUTO_DETECT_DVP_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u sc121at_detect")
     endif()
 
     if(CONFIG_CAMERA_BF20A6_AUTO_DETECT_DVP_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u bf20a6_detect")
+    endif()
+
+    if(CONFIG_CAMERA_BF3031_AUTO_DETECT_DVP_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u bf3031_detect")
     endif()
 
     if(CONFIG_CAMERA_SP0A39_AUTO_DETECT_DVP_INTERFACE_SENSOR OR CONFIG_CAMERA_SP0A39_AUTO_DETECT_SPI_INTERFACE_SENSOR)
@@ -366,6 +442,10 @@ if(CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK)
 
     if(CONFIG_CAMERA_ARDUCAM_IMX500_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-u arducam_imx500_detect")
+    endif()
+
+    if(CONFIG_CAMERA_TC358743_AUTO_DETECT_MIPI_INTERFACE_SENSOR)
+        target_link_libraries(${COMPONENT_LIB} INTERFACE "-u tc358743_detect")
     endif()
 endif()
 

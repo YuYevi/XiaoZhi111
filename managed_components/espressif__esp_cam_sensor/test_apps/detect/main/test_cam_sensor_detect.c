@@ -20,6 +20,9 @@
 #if CONFIG_CAMERA_BF20A6
 #include "bf20a6.h"
 #define SCCB0_CAM_DEVICE_ADDR BF20A6_SCCB_ADDR
+#elif CONFIG_CAMERA_BF3031
+#include "bf3031.h"
+#define SCCB0_CAM_DEVICE_ADDR BF3031_SCCB_ADDR
 #elif CONFIG_CAMERA_BF3901
 #include "bf3901.h"
 #define SCCB0_CAM_DEVICE_ADDR BF3901_SCCB_ADDR
@@ -32,6 +35,12 @@
 #elif CONFIG_CAMERA_GC0308
 #include "gc0308.h"
 #define SCCB0_CAM_DEVICE_ADDR GC0308_SCCB_ADDR
+#elif CONFIG_CAMERA_GC032A
+#include "gc032a.h"
+#define SCCB0_CAM_DEVICE_ADDR GC032A_SCCB_ADDR
+#elif CONFIG_CAMERA_GC2053
+#include "gc2053.h"
+#define SCCB0_CAM_DEVICE_ADDR GC2053_SCCB_ADDR
 #elif CONFIG_CAMERA_GC2145
 #include "gc2145.h"
 #define SCCB0_CAM_DEVICE_ADDR GC2145_SCCB_ADDR
@@ -44,6 +53,9 @@
 #elif CONFIG_CAMERA_MIRA220
 #include "mira220.h"
 #define SCCB0_CAM_DEVICE_ADDR MIRA220_SCCB_ADDR
+#elif CONFIG_CAMERA_MIT245
+#include "mit245.h"
+#define SCCB0_CAM_DEVICE_ADDR MIT245_SCCB_ADDR
 #elif CONFIG_CAMERA_MT9D111
 #include "mt9d111.h"
 #define SCCB0_CAM_DEVICE_ADDR MT9D111_SCCB_ADDR
@@ -86,6 +98,9 @@
 #elif CONFIG_CAMERA_SC121AT
 #include "sc121at.h"
 #define SCCB0_CAM_DEVICE_ADDR SC121AT_SCCB_ADDR
+#elif CONFIG_CAMERA_SC132GS
+#include "sc132gs.h"
+#define SCCB0_CAM_DEVICE_ADDR SC132GS_SCCB_ADDR
 #elif CONFIG_CAMERA_SC202CS
 #include "sc202cs.h"
 #define SCCB0_CAM_DEVICE_ADDR SC202CS_SCCB_ADDR
@@ -98,6 +113,9 @@
 #elif CONFIG_CAMERA_SC2336
 #include "sc2336.h"
 #define SCCB0_CAM_DEVICE_ADDR SC2336_SCCB_ADDR
+#elif CONFIG_CAMERA_SC2337P
+#include "sc2337p.h"
+#define SCCB0_CAM_DEVICE_ADDR SC2337P_SCCB_ADDR
 #elif CONFIG_CAMERA_SP0A39
 #include "sp0a39.h"
 #define SCCB0_CAM_DEVICE_ADDR SP0A39_SCCB_ADDR
@@ -110,6 +128,9 @@
 #elif CONFIG_CAMERA_ARDUCAM_IMX500
 #include "arducam_imx500.h"
 #define SCCB0_CAM_DEVICE_ADDR ARDUCAM_IMX500_SCCB_ADDR
+#elif CONFIG_CAMERA_TC358743
+#include "tc358743.h"
+#define SCCB0_CAM_DEVICE_ADDR TC358743_SCCB_ADDR
 #else
 #define SCCB0_CAM_DEVICE_ADDR 0x01
 #endif
@@ -177,6 +198,8 @@ TEST_CASE("Camera sensor detect test", "[video]")
     esp_cam_sensor_device_t *cam0 = NULL;
 #if CONFIG_CAMERA_BF20A6
     cam0 = bf20a6_detect(&cam0_config);
+#elif CONFIG_CAMERA_BF3031
+    cam0 = bf3031_detect(&cam0_config);
 #elif CONFIG_CAMERA_BF3901
     cam0 = bf3901_detect(&cam0_config);
 #elif CONFIG_CAMERA_BF3925
@@ -185,6 +208,10 @@ TEST_CASE("Camera sensor detect test", "[video]")
     cam0 = bf3a03_detect(&cam0_config);
 #elif CONFIG_CAMERA_GC0308
     cam0 = gc0308_detect(&cam0_config);
+#elif CONFIG_CAMERA_GC032A
+    cam0 = gc032a_detect(&cam0_config);
+#elif CONFIG_CAMERA_GC2053
+    cam0 = gc2053_detect(&cam0_config);
 #elif CONFIG_CAMERA_GC2145
     cam0 = gc2145_detect(&cam0_config);
 #elif CONFIG_CAMERA_LT6911
@@ -193,6 +220,8 @@ TEST_CASE("Camera sensor detect test", "[video]")
     cam0 = gc2607_detect(&cam0_config);
 #elif CONFIG_CAMERA_MIRA220
     cam0 = mira220_detect(&cam0_config);
+#elif CONFIG_CAMERA_MIT245
+    cam0 = mit245_detect(&cam0_config);
 #elif CONFIG_CAMERA_MT9D111
     cam0 = mt9d111_detect(&cam0_config);
 #elif CONFIG_CAMERA_OS02N10
@@ -221,12 +250,16 @@ TEST_CASE("Camera sensor detect test", "[video]")
     cam0 = sc101iot_detect(&cam0_config);
 #elif CONFIG_CAMERA_SC121AT
     cam0 = sc121at_detect(&cam0_config);
+#elif CONFIG_CAMERA_SC132GS
+    cam0 = sc132gs_detect(&cam0_config);
 #elif CONFIG_CAMERA_SC202CS
     cam0 = sc202cs_detect(&cam0_config);
 #elif CONFIG_CAMERA_SC2331
     cam0 = sc2331_detect(&cam0_config);
 #elif CONFIG_CAMERA_SC2336
     cam0 = sc2336_detect(&cam0_config);
+#elif CONFIG_CAMERA_SC2337P
+    cam0 = sc2337p_detect(&cam0_config);
 #elif CONFIG_CAMERA_SC1346
     cam0 = sc1346_detect(&cam0_config);
 #elif CONFIG_CAMERA_SP0A39
@@ -237,6 +270,8 @@ TEST_CASE("Camera sensor detect test", "[video]")
     cam0 = pivariety_detect(&cam0_config);
 #elif CONFIG_CAMERA_ARDUCAM_IMX500
     cam0 = arducam_imx500_detect(&cam0_config);
+#elif CONFIG_CAMERA_TC358743
+    cam0 = tc358743_detect(&cam0_config);
 #endif
 
     TEST_ASSERT_MESSAGE(cam0 != NULL, "detect fail");

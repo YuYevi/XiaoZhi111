@@ -84,6 +84,11 @@ extern "C" {
 #endif /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0) */
 
 #if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 6) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || \
+    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 1)
+#define ESP_VIDEO_CSI_DRIVER_HAS_8BIT_SWAP 1     /*!< CSI driver supports 8-bit swap mode */
+#endif /* (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 6) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 3)) */
+
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 6) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || \
     ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 3)
 #define ESP_VIDEO_CSI_DRIVER_HAS_EVENT 1     /*!< CSI driver supports event */
 #endif /* (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 6) && ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)) || (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 3)) */
@@ -103,6 +108,22 @@ extern "C" {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #define ESP_VIDEO_DVP_DEVICE_OUTPUT_COLOR 1 /*!< DVP video device supports output color type */
 #endif /* ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) */
+
+/**
+ * @brief DVP pixel format conversion (YUV422 YUYV to RGB565)
+ *
+ * @note Same IDF versions as DVP external XTAL: >= v5.5.1, or v5.4.x with x >= 3.
+ * @note Converted RGB565 is big-endian (``V4L2_PIX_FMT_RGB565X``), not little-endian (``V4L2_PIX_FMT_RGB565``).
+ * @note Conversion is supported only when the sensor output is YUV422 YUYV.
+ *
+ * @note This feature is disabled when the external DVP driver is enabled instead of the ESP-IDF DVP driver.
+ */
+#if !defined(CONFIG_CAM_CTRL_DVP_ENABLE) || (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 2))
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 1)) || \
+    ((ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 3)) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)))
+#define ESP_VIDEO_DVP_DEVICE_CONV_FORMAT 1 /*!< DVP video device supports convert frame format */
+#endif
+#endif /* !defined(CONFIG_CAM_CTRL_DVP_ENABLE) || (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 2)) */
 
 #ifdef __cplusplus
 }

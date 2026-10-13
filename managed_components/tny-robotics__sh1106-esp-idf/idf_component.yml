@@ -4,7 +4,7 @@ maintainers:
 - TNY Robotics <contact@tny-robotics.com>
 repository: git://github.com/TNY-Robotics/sh1106-esp-idf.git
 repository_info:
-  commit_sha: 6d64458520b071eedb1090563ea47ecbc5a0348f
+  commit_sha: 4aff3315ea909ef31b4f4b17535a16ab635d9e4c
   path: .
 tags:
 - sh1106
@@ -15,4 +15,4 @@ tags:
 - driver
 - esp-idf
 url: https://github.com/TNY-Robotics/sh1106-esp-idf
-version: 1.0.1
+version: 1.0.2

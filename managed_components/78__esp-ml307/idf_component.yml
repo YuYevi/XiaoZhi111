@@ -16,7 +16,7 @@ files:
 license: Apache-2.0
 repository: git://github.com/78/esp-ml307.git
 repository_info:
-  commit_sha: 9f2a278ac6bf4ca3d6bc5057e8fcf10097cc583f
+  commit_sha: 40d99e50367034832a6790c17832ca2cb5b91f8b
   path: .
 url: https://github.com/78/esp-ml307
-version: 3.6.6
+version: 3.6.7
