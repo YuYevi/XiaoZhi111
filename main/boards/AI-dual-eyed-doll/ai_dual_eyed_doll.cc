@@ -26,80 +26,76 @@
 #include "codecs/es8389_audio_codec.h"
 #include "config.h"
 #include "dual_eye_display.h"
-#include "esp_lcd_gc9d01.h"
+#include "esp_lcd_panel_st7789.h"
 
 #define TAG "AiDualEyedDoll"
 
-static const gc9d01_lcd_init_cmd_t kGc9d01InitCommands[] = {
-    {0xFE, nullptr, 0, 0},
-    {0xEF, nullptr, 0, 0},
-    {0x80, (const uint8_t[]){0xFF}, 1, 0},
-    {0x81, (const uint8_t[]){0xFF}, 1, 0},
-    {0x82, (const uint8_t[]){0xFF}, 1, 0},
-    {0x83, (const uint8_t[]){0xFF}, 1, 0},
-    {0x84, (const uint8_t[]){0xFF}, 1, 0},
-    {0x85, (const uint8_t[]){0xFF}, 1, 0},
-    {0x86, (const uint8_t[]){0xFF}, 1, 0},
-    {0x87, (const uint8_t[]){0xFF}, 1, 0},
-    {0x88, (const uint8_t[]){0xFF}, 1, 0},
-    {0x89, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8A, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8B, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8C, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8D, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8E, (const uint8_t[]){0xFF}, 1, 0},
-    {0x8F, (const uint8_t[]){0xFF}, 1, 0},
-    {0x3A, (const uint8_t[]){0x05}, 1, 0},
-    {0xEC, (const uint8_t[]){0x01}, 1, 0},
-    {0x74, (const uint8_t[]){0x02, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00}, 7, 0},
-    {0x98, (const uint8_t[]){0x3E}, 1, 0},
-    {0x99, (const uint8_t[]){0x3E}, 1, 0},
-    {0xB5, (const uint8_t[]){0x0D, 0x0D}, 2, 0},
-    {0x60, (const uint8_t[]){0x38, 0x0F, 0x79, 0x67}, 4, 0},
-    {0x61, (const uint8_t[]){0x38, 0x11, 0x79, 0x67}, 4, 0},
-    {0x64, (const uint8_t[]){0x38, 0x17, 0x71, 0x5F, 0x79, 0x67}, 6, 0},
-    {0x65, (const uint8_t[]){0x38, 0x13, 0x71, 0x5B, 0x79, 0x67}, 6, 0},
-    {0x6A, (const uint8_t[]){0x00, 0x00}, 2, 0},
-    {0x6C, (const uint8_t[]){0x22, 0x02, 0x22, 0x02, 0x22, 0x22, 0x50}, 7, 0},
-    {0x6E, (const uint8_t[]){0x03, 0x03, 0x01, 0x01, 0x00, 0x00, 0x0F, 0x0F, 0x0D, 0x0D, 0x0B,
-                             0x0B, 0x09, 0x09, 0x00, 0x00, 0x00, 0x00, 0x0A, 0x0A, 0x0C, 0x0C,
-                             0x0E, 0x0E, 0x10, 0x10, 0x00, 0x00, 0x02, 0x02, 0x04, 0x04},
-     32, 0},
-    {0xBF, (const uint8_t[]){0x01}, 1, 0},
-    {0xF9, (const uint8_t[]){0x40}, 1, 0},
-    {0x9B, (const uint8_t[]){0x3B}, 1, 0},
-    {0x93, (const uint8_t[]){0x33, 0x7F, 0x00}, 3, 0},
-    {0x7E, (const uint8_t[]){0x30}, 1, 0},
-    {0x70, (const uint8_t[]){0x0D, 0x02, 0x08, 0x0D, 0x02, 0x08}, 6, 0},
-    {0x71, (const uint8_t[]){0x0D, 0x02, 0x08}, 3, 0},
-    {0x91, (const uint8_t[]){0x0E, 0x09}, 2, 0},
-    {0xC3, (const uint8_t[]){0x18}, 1, 0},
-    {0xC4, (const uint8_t[]){0x18}, 1, 0},
-    {0xC9, (const uint8_t[]){0x3C}, 1, 0},
-    {0xF0, (const uint8_t[]){0x13, 0x15, 0x04, 0x05, 0x01, 0x38}, 6, 0},
-    {0xF2, (const uint8_t[]){0x13, 0x15, 0x04, 0x05, 0x01, 0x34}, 6, 0},
-    {0xF1, (const uint8_t[]){0x4B, 0xB8, 0x7B, 0x34, 0x35, 0xEF}, 6, 0},
-    {0xF3, (const uint8_t[]){0x47, 0xB4, 0x72, 0x34, 0x35, 0xDA}, 6, 0},
-    {0x36, (const uint8_t[]){0x00}, 1, 0},
-    {0x11, nullptr, 0, 200},
-    {0x29, nullptr, 0, 0},
-    {0x2C, nullptr, 0, 0},
+// 最小化的 {命令、数据、长度、延时} 记录。esp_lcd 的 ST7789 驱动没有
+// vendor_config 钩子（初始化只发送 SLPOUT、MADCTL、COLMOD 和 0xB0），
+// 因此面板专用参数直接通过 panel IO 发送。
+struct PanelInitCmd {
+    uint8_t cmd;
+    const uint8_t* data;
+    uint16_t data_bytes;
+    uint32_t delay_ms;
 };
+
+// 0.9 英寸 BOE 圆屏（ST7735S/ST7735P 系列）的电源、帧率、VCOM 和伽马配置，
+// 参考模块附带的 KAC STM32F103 SPI 示例。
+//
+// 以下命令由驱动完成，因此不在这里重复发送：
+//   0x11 SLPOUT - 驱动发送后等待 100 ms
+//   0x3A COLMOD - 驱动发送 0x55，即 16 位像素格式
+//   0x36 MADCTL 0xC8 - 驱动的 BGR 位与 esp_lcd_panel_mirror(true, true)
+//   0x21 INVON   - esp_lcd_panel_invert_color(DISPLAY_INVERT_COLOR)
+//   0x29 DISPON  - esp_lcd_panel_disp_on_off(true)
+//
+// MADCTL 0xC8 是面板的参考方向；驱动只会改写 esp_lcd_panel_mirror() 中的
+// MX/MY，因此 BGR 位会保留。
+static const PanelInitCmd kBoePanelInit[] = {
+    {0xB1, (const uint8_t[]){0x02, 0x35, 0x36}, 3, 0},  // FRMCTR1：正常模式帧率
+    {0xB2, (const uint8_t[]){0x02, 0x35, 0x36}, 3, 0},  // FRMCTR2：空闲模式帧率
+    {0xB3, (const uint8_t[]){0x02, 0x35, 0x36, 0x02, 0x35, 0x36}, 6, 0},  // FRMCTR3：部分模式帧率
+    {0xB4, (const uint8_t[]){0x00}, 1, 0},              // INVCTR：关闭点反转
+    {0xC0, (const uint8_t[]){0xA2, 0x02, 0x84}, 3, 0},  // PWCTR1：电源控制 1
+    {0xC1, (const uint8_t[]){0xC5}, 1, 0},              // PWCTR2：电源控制 2
+    {0xC2, (const uint8_t[]){0x0D, 0x00}, 2, 0},        // PWCTR3：电源控制 3
+    {0xC3, (const uint8_t[]){0x8A, 0x2A}, 2, 0},        // PWCTR4：电源控制 4
+    {0xC4, (const uint8_t[]){0x8D, 0xEE}, 2, 0},        // PWCTR5：电源控制 5
+    {0xC5, (const uint8_t[]){0x02}, 1, 0},              // VMCTR1：VCOM 控制
+    {0xE0, (const uint8_t[]){0x12, 0x1C, 0x10, 0x18, 0x33, 0x2C, 0x25, 0x28,
+                             0x28, 0x27, 0x2F, 0x3C, 0x00, 0x03, 0x03, 0x10},
+     16, 0},                                            // GMCTRP1：正伽马
+    {0xE1, (const uint8_t[]){0x12, 0x1C, 0x10, 0x18, 0x2D, 0x28, 0x23, 0x28,
+                             0x28, 0x26, 0x2F, 0x3B, 0x00, 0x03, 0x03, 0x10},
+     16, 0},                                            // GMCTRN1：负伽马
+};
+
+// 通过已初始化的 panel IO 发送面板专用配置。
+// 调用时 esp_lcd_panel_init() 已经发送完驱动自带的四条命令。
+static void ApplyPanelInit(esp_lcd_panel_io_handle_t io, const PanelInitCmd* cmds, size_t count) {
+    for (size_t i = 0; i < count; ++i) {
+        const PanelInitCmd& item = cmds[i];
+        ESP_ERROR_CHECK(
+            esp_lcd_panel_io_tx_param(io, item.cmd, item.data, item.data_bytes));
+        if (item.delay_ms > 0) {
+            vTaskDelay(pdMS_TO_TICKS(item.delay_ms));
+        }
+    }
+    ESP_LOGI(TAG, "BOE panel init applied (%u commands)", static_cast<unsigned>(count));
+}
 
 class AiDualEyedDollBoard : public WifiBoard {
 private:
-    // One scene = one frame-delta animation in the read-only assets partition
-    // plus the embedded Ogg clip that plays when the scene is shown.
+    // 一个场景由只读资源分区中的逐帧差分动画和对应的内置 Ogg 音频组成。
     struct EyeScene {
         const char* animation;
         const std::string_view* sound;
     };
 
-    // KEY 1 walks this list in order and wraps around. The *_blnk assets come
-    // from Pictures/动图/*_blink.gif; the voice clips are the baobao-flavoured
-    // lines (lazy, deadpan young-female TTS voice). Asset names must stay at 15
-    // characters or fewer: CONFIG_MMAP_FILE_NAME_LENGTH is 16, so longer names
-    // are truncated in the assets table and the lookup by exact name fails.
+    // KEY 1 按顺序循环使用此列表。*_blnk 资源来自 *_blink.gif，语音使用宝儿风格的
+    // 年轻女性 TTS。资源名最多 15 个字符；CONFIG_MMAP_FILE_NAME_LENGTH 为 16，
+    // 更长的名称会在资源表中被截断，导致精确查找失败。
     static constexpr EyeScene kKey1Scenes[] = {
         {"shckblnk.anim.z", &BoardSounds::OGG_BAOER_SHOCKED},
         {"cuteblnk.anim.z", &BoardSounds::OGG_BAOER_CUTE},
@@ -108,9 +104,8 @@ private:
     static constexpr int kKey1SceneCount =
         static_cast<int>(sizeof(kKey1Scenes) / sizeof(kKey1Scenes[0]));
 
-    // The power button walks this list: the cute/happy/sad crop animations
-    // together with the lanmeng-flavoured voice clips (lively young-female
-    // TTS voice). Holding still still powers the board off.
+    // 电源键按顺序循环使用可爱、开心和难过裁剪动画及对应的岚梦风格年轻女性 TTS。
+    // 长按电源键仍然执行关机。
     static constexpr EyeScene kPowerScenes[] = {
         {"cute.anim.z", &BoardSounds::OGG_LANMENG_CUTE},
         {"happy.anim.z", &BoardSounds::OGG_LANMENG_HAPPY},
@@ -122,7 +117,7 @@ private:
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     DualEyeDisplay* display_ = nullptr;
     AdcBatteryMonitor* battery_monitor_ = nullptr;
-    // Plays the scene sound away from the main task, see SceneSoundLoop().
+    // 在独立任务中播放场景音频，详见 SceneSoundLoop()。
     TaskHandle_t scene_sound_task_ = nullptr;
     Button key1_button_;
     Button pwr_button_;
@@ -130,10 +125,10 @@ private:
     Button touch2_button_;
     bool screen_on_ = true;
     bool power_button_released_ = false;
-    int key1_scene_ = -1;    // -1 so the first KEY 1 press lands on kKey1Scenes[0].
-    int power_scene_ = -1;   // -1 so the first power click lands on kPowerScenes[0].
-    bool scene_audio_enabled_ = true;  // KEY 1 long press toggles this.
-    // Scene sound the eye_sound task should play next; read after the notify.
+    int key1_scene_ = -1;    // 从 -1 开始，使第一次 KEY 1 按键选择 kKey1Scenes[0]。
+    int power_scene_ = -1;   // 从 -1 开始，使第一次电源键短按选择 kPowerScenes[0]。
+    bool scene_audio_enabled_ = true;  // KEY 1 长按切换此状态。
+    // eye_sound 任务下一次要播放的场景音频；收到通知后读取。
     std::atomic<const std::string_view*> pending_sound_{nullptr};
 
     void ConfigureWakeAndPowerOff() {
@@ -203,21 +198,12 @@ private:
         ConfigureWakeAndPowerOff();
     }
 
-    // KEY 1 long press now toggles the scene voice clips instead of the WiFi
-    // config AP; the no-SSID boot provisioning path is untouched.
+    // KEY 1 长按现在切换场景语音，不再切换 Wi-Fi 配网 AP；无 SSID 时的首次启动配网不变。
 
-    // KEY 1 cycles shocked_blink -> cute_blink -> happy_blink, and every press
-    // restarts both the animation and the matching voice clip from the
-    // beginning. So a press made while nothing is playing gets picture and
-    // sound in the same instant, and a press made while the previous scene is
-    // still running is never swallowed: the animation cuts over immediately and
-    // the sound restarts as soon as the previous clip's push into the audio
-    // queue has drained.
-    //
-    // The power button does the same over its own cute -> happy -> sad list.
-    // Both button handlers only pick the next scene and poke the sound task;
-    // the panels and the audio queue are touched from the scheduled closures
-    // and the sound task respectively.
+    // KEY 1 按 shocked_blink -> cute_blink -> happy_blink 顺序循环，每次按键都会从头
+    // 重启动画和对应语音。即使上一场景仍在播放，动画也会立即切换，语音会在旧音频
+    // 清理后重新开始。电源键同理，按 cute -> happy -> sad 顺序循环。
+    // 按键回调只选择场景并通知音频任务；面板和音频队列分别由主任务闭包和音频任务操作。
     void AdvanceKey1Scene() {
         key1_scene_ = (key1_scene_ + 1) % kKey1SceneCount;
         StartScene(kKey1Scenes[key1_scene_], "KEY_1");
@@ -240,9 +226,8 @@ private:
                          scene.animation);
                 return;
             }
-            // The animation restarts from its first frame here, on the main
-            // task, so the press is visible immediately even while the previous
-            // scene or its sound clip is still running.
+            // 在主任务中从第一帧重新启动动画，即使上一场景或语音仍在运行，
+            // 按键反馈也能立即显示。
             display_->StartAnimation(scene.animation, asset.data, asset.size);
         });
         pending_sound_.store(scene.sound, std::memory_order_relaxed);
@@ -255,15 +240,9 @@ private:
         static_cast<AiDualEyedDollBoard*>(arg)->SceneSoundLoop();
     }
 
-    // AudioService::PlaySound() pushes the whole clip into a decode queue that
-    // is only MAX_DECODE_PACKETS_IN_QUEUE deep (2400ms of audio) and blocks its
-    // caller whenever the queue is full. The scene clips run up to ~3s, so
-    // calling it from the main task would freeze button handling and the event
-    // loop for a second or more - the exact opposite of "every press gets a
-    // response".
-    //
-    // This task owns the playback instead. The notification coalesces, so a
-    // burst of presses ends in a single restart rather than a queue of clips.
+    // AudioService::PlaySound() 会把整段音频推入解码队列。队列只有约 2400 ms 容量，
+    // 满载时会阻塞调用者。场景音频最长约 3 秒，如果在主任务中调用，会冻结按键处理
+    // 和事件循环。因此由此任务负责播放；连续快速按键会合并为一次重新播放。
     void SceneSoundLoop() {
         while (true) {
             ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -275,16 +254,14 @@ private:
                 continue;
             }
             auto& audio = Application::GetInstance().GetAudioService();
-            // Clear anything left over from an earlier press, otherwise the old
-            // clip would still be in front of the new animation.
+            // 清除上一次按键遗留的音频，否则旧语音会排在新场景前面。
             audio.ResetDecoder();
             audio.PlaySound(*sound);
         }
     }
 
-    // KEY 1 long press: mute or unmute the scene voice clips. Switching back on
-    // plays tsundere.ogg as confirmation; switching off resets the decoder so
-    // the clip that is currently playing stops promptly.
+    // KEY 1 长按：静音或恢复场景语音。恢复时播放 tsundere.ogg 作为提示；静音时重置
+    // 解码器，使当前语音立即停止。
     void ToggleSceneAudio() {
         scene_audio_enabled_ = !scene_audio_enabled_;
         ESP_LOGI(TAG, "KEY_1 long press: scene audio %s",
@@ -342,8 +319,11 @@ private:
         vTaskDelay(pdMS_TO_TICKS(120));
     }
 
-    void CreateEyePanel(gpio_num_t cs_pin, bool mirror_x, esp_lcd_panel_io_handle_t* io_out,
-                        esp_lcd_panel_handle_t* panel_out) {
+    // mirror_x/mirror_y 对应 MADCTL 的 MX/MY 位。BOE 厂商序列将面板置于参考方向
+    //（0xC8 = MX|MY|BGR），左眼保留两位，右眼因硬件镜像安装而清除 MX。
+    // esp_lcd_panel_mirror() 只改写 MX/MY，因此厂商序列中的 BGR 位会保留。
+    void CreateEyePanel(gpio_num_t cs_pin, bool mirror_x, bool mirror_y,
+                        esp_lcd_panel_io_handle_t* io_out, esp_lcd_panel_handle_t* panel_out) {
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = cs_pin;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
@@ -354,45 +334,44 @@ private:
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(DISPLAY_SPI_HOST, &io_config, io_out));
 
-        gc9d01_vendor_config_t vendor_config = {
-            .init_cmds = kGc9d01InitCommands,
-            .init_cmds_size =
-                static_cast<uint16_t>(sizeof(kGc9d01InitCommands) / sizeof(kGc9d01InitCommands[0])),
-        };
+        // BOE 面板通过 esp_lcd 内置的 ST7789 驱动驱动，和项目中的其他 ST7735 板卡一致。
+        // ST7735S 与 ST7789 兼容 DualEyeDisplay 使用的命令；驱动会在 draw_bitmap() 中
+        // 应用 GRAM 偏移。但驱动初始化只有四条命令，因此面板专用配置要在此后通过
+        // panel IO 发送。
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = GPIO_NUM_NC;
-        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
         panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = &vendor_config;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_gc9d01(*io_out, &panel_config, panel_out));
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(*io_out, &panel_config, panel_out));
         ESP_ERROR_CHECK(esp_lcd_panel_reset(*panel_out));
         ESP_ERROR_CHECK(esp_lcd_panel_init(*panel_out));
+        ApplyPanelInit(*io_out, kBoePanelInit, sizeof(kBoePanelInit) / sizeof(kBoePanelInit[0]));
+        // BOE 面板将 GRAM (0,0) 映射到 (2,2)；set_gap() 会为 CASET/RASET 窗口应用该偏移。
+        ESP_ERROR_CHECK(esp_lcd_panel_set_gap(*panel_out, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(*panel_out, DISPLAY_INVERT_COLOR));
-        ESP_ERROR_CHECK(esp_lcd_panel_mirror(*panel_out, mirror_x, DISPLAY_MIRROR_Y));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(*panel_out, mirror_x, mirror_y));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(*panel_out, true));
     }
 
     void InitializeEyes() {
-        ESP_LOGI(TAG, "Init dual GC9D01N eyes");
+        ESP_LOGI(TAG, "Init dual ST7735S eyes (0.9\" BOE round, 128x128)");
         ResetEyes();
 
         esp_lcd_panel_io_handle_t left_io = nullptr;
         esp_lcd_panel_io_handle_t right_io = nullptr;
         esp_lcd_panel_handle_t left_panel = nullptr;
         esp_lcd_panel_handle_t right_panel = nullptr;
-        CreateEyePanel(DISPLAY_LEFT_CS_PIN, false, &left_io, &left_panel);
-        CreateEyePanel(DISPLAY_RIGHT_CS_PIN, true, &right_io, &right_panel);
+        CreateEyePanel(DISPLAY_LEFT_CS_PIN, true, true, &left_io, &left_panel);
+        CreateEyePanel(DISPLAY_RIGHT_CS_PIN, false, true, &right_io, &right_panel);
         display_ = new DualEyeDisplay(left_io, left_panel, right_io, right_panel);
     }
 
     void InitializeButtons() {
-        // The two touch pads and the original KEY 1 chat toggle were switched off
-        // when KEY 1 was reworked into the animation cycle; the pads have no
-        // handler any more and KEY 1 short press advances the scene instead.
+        // KEY 1 改为动画循环后，两个触摸键和原有的 KEY 1 对话切换功能均已关闭；
+        // 触摸键不再注册处理器，KEY 1 短按改为切换场景。
 
         pwr_button_.OnPressUp([this]() { power_button_released_ = true; });
-        // Short press cycles the cute/happy/sad scenes with their voice clips;
-        // holding still powers the board off (unchanged).
+        // 短按循环 cute/happy/sad 场景及对应语音；长按关机，行为保持不变。
         pwr_button_.OnClick([this]() { AdvancePowerScene(); });
         pwr_button_.OnLongPress([this]() {
             if (!power_button_released_) {
@@ -403,15 +382,13 @@ private:
         });
         power_button_released_ = gpio_get_level(PWR_BUTTON_GPIO) != 0;
 
-        // KEY 1: short press cycles scenes, long press mutes/unmutes the scene
-        // voice clips. (This replaces the old WiFi config toggle; the board
-        // still provisions normally on first boot without a saved SSID.)
+        // KEY 1：短按循环场景，长按静音或恢复场景语音。
+        // 这替代了旧的 Wi-Fi 配网切换功能，但无已保存 SSID 时仍会正常进入首次配网。
         key1_button_.OnClick([this]() { AdvanceKey1Scene(); });
         key1_button_.OnLongPress([this]() { ToggleSceneAudio(); });
 
-        // Core 1 keeps this next to the audio and protocol tasks. It blocks on the
-        // notification nearly all the time, so its low priority and 6KB stack only
-        // matter while a clip is being demuxed.
+        // 音频任务固定在 Core 1 附近运行。该任务大部分时间阻塞在通知上，只有解复用音频
+        // 时才会使用低优先级和 6 KB 栈空间。
         if (xTaskCreatePinnedToCore(SceneSoundTaskEntry, "eye_sound", 6144, this, 3,
                                     &scene_sound_task_, 1) != pdPASS) {
             scene_sound_task_ = nullptr;

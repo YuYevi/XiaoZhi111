@@ -13,7 +13,7 @@
 #define EYE_PIXELS (DISPLAY_WIDTH * DISPLAY_HEIGHT)
 #define EYE_BYTES (EYE_PIXELS * sizeof(uint16_t))
 
-#define ANIM_MAGIC 0x31414544u  // 'D','E','A','1' little-endian
+#define ANIM_MAGIC 0x31414544u  // 小端序表示的 'D','E','A','1'
 #define ANIM_VERSION 1
 #define ANIM_HEADER_SIZE (sizeof(DualEyeDisplay::AnimationHeader))
 
@@ -51,8 +51,8 @@ static const EyeAsset kEyeAssets[] = {
     {"shocked", shocked_rgb565_z_start, shocked_rgb565_z_end},
 };
 
-// Packed RGB565 assets are little-endian. GC9D01 expects the high byte first
-// on SPI, so swap each pixel before handing the buffer to esp_lcd.
+// 打包后的 RGB565 资源使用小端序。ST7735S 面板通过 SPI 接收高字节在前，
+// 因此交给 esp_lcd 前需要交换每个像素的两个字节。
 static void SwapPixelBytes(uint8_t* bytes, size_t length) {
     for (size_t i = 0; i + 1 < length; i += sizeof(uint16_t)) {
         const uint8_t high = bytes[i];
@@ -62,8 +62,8 @@ static void SwapPixelBytes(uint8_t* bytes, size_t length) {
 }
 
 bool DualEyeDisplay::Inflate(const uint8_t* start, size_t size, uint8_t* dest, size_t dest_len) {
-    // tinfl_decompress_mem_to_mem() keeps tinfl_decompressor on the caller's stack (~4KB+).
-    // Board init runs on the 8KB main task, so that overflows and reboots with StoreProhibited.
+    // tinfl_decompress_mem_to_mem() 会把 tinfl_decompressor 放在调用者栈上（约 4 KB 以上）。
+    // 板卡初始化运行在 8 KB 主任务栈中，可能因此溢出并触发 StoreProhibited 重启。
     if (inflater_ == nullptr) {
         inflater_ =
             heap_caps_malloc(sizeof(tinfl_decompressor), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -263,9 +263,8 @@ void DualEyeDisplay::SetEmotion(const char* emotion) {
     if (current_emotion_ != nullptr && strcmp(current_emotion_, mapped) == 0 && !animation_run_) {
         return;
     }
-    // A static expression takes ownership of the panels, so any running
-    // animation has to wind down first. StopAnimation() does not take mutex_,
-    // and the animation task never takes it either, so this cannot deadlock.
+    // 静态表情需要独占屏幕，因此必须先停止正在运行的动画。StopAnimation()
+    // 不获取 mutex_，动画任务也不会获取它，所以这里不会死锁。
     StopAnimation();
     DrawEmotion(mapped);
 }
@@ -311,8 +310,8 @@ bool DualEyeDisplay::StartAnimation(const char* name, const void* data, size_t s
     animation_size_ = size;
     animation_run_ = true;
 
-    // Core 0 keeps the ~20ms of SPI flushing per frame away from the audio task
-    // on core 1. Priority 4 stays below the audio and protocol tasks.
+    // 动画任务固定在 Core 0，避免每帧约 20 ms 的 SPI 刷屏影响 Core 1 上的音频任务。
+    // 优先级 4 低于音频和协议任务。
     if (xTaskCreatePinnedToCore(AnimationTaskEntry, "eye_anim", 4096, this, 4, &animation_task_,
                                 0) != pdPASS) {
         animation_run_ = false;
@@ -335,14 +334,11 @@ void DualEyeDisplay::StopAnimation() {
     }
     animation_run_ = false;
     if (animation_task_ != nullptr) {
-        // Wake the task out of its frame delay. Without this the caller would
-        // wait up to a whole frame period (90ms for the shipped clips) before
-        // the panels are handed over, which is exactly the delay a button press
-        // must not have.
+        // 唤醒正在等待帧间隔的任务。否则调用者最多要等待一个完整帧周期（资源为 90 ms），
+        // 按键切换就会产生不应有的延迟。
         xTaskNotifyGive(animation_task_);
         if (animation_stopped_ != nullptr) {
-            // The task checks animation_run_ once per frame, so one frame period
-            // plus a flush is the normal hand-off time.
+            // 任务每帧检查一次 animation_run_，因此通常需要一个帧周期加一次刷屏时间完成交接。
             if (xSemaphoreTake(animation_stopped_, pdMS_TO_TICKS(500)) != pdTRUE) {
                 ESP_LOGW(TAG, "Animation task did not stop in time");
             }
@@ -363,15 +359,14 @@ bool DualEyeDisplay::DecodeAnimationFrame(const uint8_t* compressed, size_t comp
         return false;
     }
 
-    // apply the delta and byte-swap in one pass. The delta is byte-wise, so the
-    // low and high halves of each RGB565 pixel are independent.
+    // 一次遍历完成差分叠加和字节交换。差分以字节为单位，因此 RGB565 像素的高低字节互相独立。
     auto* out = reinterpret_cast<uint8_t*>(frame_);
     for (size_t i = 0; i < EYE_BYTES; i += 2) {
         const uint8_t lo = static_cast<uint8_t>(accum_[i] + delta_[i]);
         const uint8_t hi = static_cast<uint8_t>(accum_[i + 1] + delta_[i + 1]);
         accum_[i] = lo;
         accum_[i + 1] = hi;
-        out[i] = hi;  // GC9D01 wants the high byte first on SPI.
+        out[i] = hi;  // ST7735S 通过 SPI 接收高字节在前。
         out[i + 1] = lo;
     }
     return true;
@@ -389,8 +384,7 @@ void DualEyeDisplay::AnimationLoop() {
     const char* name = animation_name_;
 
     while (animation_run_) {
-        // The first frame of the asset is a delta against an all-zero buffer,
-        // so every loop restarts from a cleared accumulator.
+        // 资源第一帧是相对于全零缓冲区的差分，因此每次循环都要清空累加缓冲区。
         memset(accum_, 0, EYE_BYTES);
         size_t offset = data_offset;
         TickType_t last_wake = xTaskGetTickCount();
@@ -404,17 +398,15 @@ void DualEyeDisplay::AnimationLoop() {
             offset += table[index];
             DrawFrameToPanels();
 
-            // Sleep out the rest of this frame's period. StopAnimation() pokes the
-            // task so a button press ends the wait immediately instead of waiting
-            // for the delay to expire.
+            // 等待本帧剩余的时间。StopAnimation() 会通知任务，使按键能够立即结束等待，
+            // 不必等到延时自然结束。
             const TickType_t deadline = last_wake + period;
             const TickType_t now = xTaskGetTickCount();
             if (now < deadline) {
                 ulTaskNotifyTake(pdTRUE, deadline - now);
             }
 
-            // Keep the cadence, but resync after a slow flush instead of running
-            // the missed frames back to back.
+            // 保持播放节奏；如果刷屏变慢则重新同步，避免连续追赶漏掉的帧。
             last_wake = xTaskGetTickCount();
             if (last_wake < deadline) {
                 last_wake = deadline;
@@ -441,7 +433,7 @@ void DualEyeDisplay::ShowNotification(const char* notification, int duration_ms)
 void DualEyeDisplay::SetPowerSaveMode(bool on) {
     DisplayLockGuard lock(this);
     if (on) {
-        // The panels are off; keeping the animation task awake would only burn CPU.
+        // 面板已关闭，继续运行动画任务只会浪费 CPU。
         StopAnimation();
     }
     if (left_panel_ != nullptr) {

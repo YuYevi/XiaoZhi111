@@ -4,7 +4,7 @@
 #include <driver/gpio.h>
 #include <hal/adc_types.h>
 
-/* ==================== Audio (ES8390, driven as ES8389) ==================== */
+/* ==================== 音频（ES8390，使用 ES8389 驱动） ==================== */
 #define AUDIO_INPUT_SAMPLE_RATE 24000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 #define AUDIO_INPUT_REFERENCE false
@@ -19,11 +19,11 @@
 #define AUDIO_CODEC_I2C_SCL_PIN GPIO_NUM_6
 #define AUDIO_CODEC_I2C_SDA_PIN GPIO_NUM_7
 #define AUDIO_CODEC_ES8389_ADDR ES8389_CODEC_DEFAULT_ADDR
-// Hardware rework: KEY_2 removed, PA_SD moved from GPIO35 (PSRAM) to GPIO18, R44 DNP
+// 硬件改版：移除 KEY_2，PA_SD 从 GPIO35（PSRAM）移至 GPIO18，R44 不装配。
 #define AUDIO_CODEC_PA_PIN GPIO_NUM_18
 #define AUDIO_CODEC_PA_INVERTED 0
 
-/* ==================== Buttons / power ==================== */
+/* ==================== 按键与电源 ==================== */
 #define BOOT_BUTTON_GPIO GPIO_NUM_0
 #define KEY_1_BUTTON_GPIO GPIO_NUM_17
 #define PWR_BUTTON_GPIO GPIO_NUM_2
@@ -37,15 +37,17 @@
 #define POWER_BATTERY_ADC_UNIT ADC_UNIT_1
 #define POWER_BATTERY_ADC_CHANNEL ADC_CHANNEL_3
 
-/* ==================== Dual GC9D01N eyes (0.71", 160x160) ==================== */
-#define DISPLAY_WIDTH 160
-#define DISPLAY_HEIGHT 160
+/* ==================== 双 ST7735S 眼睛（0.9 英寸 BOE 圆屏，128x128） ==================== */
+#define DISPLAY_WIDTH 128
+#define DISPLAY_HEIGHT 128
 #define DISPLAY_MIRROR_X false
 #define DISPLAY_MIRROR_Y false
 #define DISPLAY_SWAP_XY false
-#define DISPLAY_OFFSET_X 0
-#define DISPLAY_OFFSET_Y 0
-#define DISPLAY_INVERT_COLOR false
+// BOE 面板的 GRAM 原点为 (2, 2)，厂商示例在设置 CASET/RASET 前会使用此偏移量。
+#define DISPLAY_OFFSET_X 2
+#define DISPLAY_OFFSET_Y 2
+// BOE 厂商初始化序列以 0x21（开启反色）结束；本面板需要该设置才能获得正确颜色。
+#define DISPLAY_INVERT_COLOR true
 
 #define DISPLAY_SPI_SCK_PIN GPIO_NUM_9
 #define DISPLAY_SPI_MOSI_PIN GPIO_NUM_10
@@ -60,9 +62,9 @@
 #define DISPLAY_SPI_CLOCK_HZ (40 * 1000 * 1000)
 
 /*
- * ESP32-S3R8 octal PSRAM occupies GPIO33-37 and GPIO47-48.
- * Touch_out3 (GPIO37) and Touch_out4 (GPIO36) are left unused.
- * Touch_out1 = GPIO8, Touch_out2 = GPIO38 (TTP233H, active-high).
+ * ESP32-S3R8 八线 PSRAM 占用 GPIO33-37 和 GPIO47-48。
+ * Touch_out3（GPIO37）和 Touch_out4（GPIO36）不使用。
+ * Touch_out1=GPIO8、Touch_out2=GPIO38（TTP233H，高电平有效）。
  */
 
 #endif  // _BOARD_CONFIG_H_
