@@ -31,7 +31,7 @@ GEN = os.path.join(
 OUT_DIR = os.path.join(ROOT, "tmp", "verify_partition_image")
 IMG = os.path.join(OUT_DIR, "assets", "assets.bin")
 
-# Must match partitions/v2/4m.csv and sdkconfig.
+# Must match partitions/v2/4m_model.csv and sdkconfig.
 PARTITION_SIZE = 0x100000
 NAME_LENGTH = 16  # CONFIG_MMAP_FILE_NAME_LENGTH
 ENTRY_SIZE = NAME_LENGTH + 4 + 4 + 2 + 2

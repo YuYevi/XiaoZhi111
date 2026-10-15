@@ -1,0 +1,14 @@
+﻿# ESP-IDF Partition Table
+# 4MB layout for AI-dual-eyed-doll: adds a `model` partition so esp-sr can
+# pack the Kconfig-selected wake word model into srmodels.bin and flash it at
+# build time (esp_srmodel_init("model") mmaps it at runtime). Without this
+# partition the build silently skips srmodels.bin and the device boots with
+# AFE detector: none (wake word dead).
+# The app image needs ~2.4MB, factory keeps ~250KB headroom.
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,    0x4000,
+otadata,  data, ota,     0xd000,    0x2000,
+phy_init, data, phy,     0xf000,    0x1000,
+model,    data, spiffs,  0x10000,   0x60000,
+factory,  app,  factory, 0x70000,   0x290000,
+assets,   data, spiffs,  0x300000,  0x100000,

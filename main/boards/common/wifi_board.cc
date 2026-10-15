@@ -62,6 +62,13 @@ void WifiBoard::StartNetwork() {
                  mac[5]);
         config.station_hostname = hostname;
     }
+    // Station scan backoff. The first scan right after leaving config mode is
+    // issued immediately after the APSTA->STA switch and can come back empty
+    // while the radio settles, so retry quickly instead of using the component
+    // default (10s doubling up to 300s). The 60s connect timeout in
+    // TryWifiConnect() bounds how long aggressive scanning can last.
+    config.station_scan_min_interval_seconds = 2;
+    config.station_scan_max_interval_seconds = 30;
     wifi_manager.Initialize(config);
 
     // Set unified event callback - forward to NetworkEvent with SSID data

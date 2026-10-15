@@ -43,6 +43,22 @@
 
 动画采用逐帧差分和 zlib 压缩。眨眼动画需要使用 40 ms 的时间轴重采样，以保留原始 GIF 的停留时间；裁剪动画使用每 3 帧取 1 帧，以控制在 1 MB 分区容量内。重新制作资源后，应运行分区镜像校验脚本。
 
+## 唤醒词与分区表
+
+本板使用 `partitions/v2/4m_model.csv`（4 MB）：
+
+| 分区 | 偏移 | 大小 | 用途 |
+| --- | --- | --- | --- |
+| `model` | 0x10000 | 384 KB | 构建期打包并烧录的唤醒词模型 `srmodels.bin` |
+| `factory` | 0x70000 | 2.5 MB | 应用固件（当前镜像约 2.4 MB，余量约 250 KB） |
+| `assets` | 0x300000 | 1 MB | 眼珠动画分区镜像（只读，板子专用） |
+
+唤醒词模型由 esp-sr 在构建时按 `sdkconfig.defaults.esp32s3` 中的选择（当前为 `wn9_nihaoxiaozhi_tts`，唤醒词「你好小智」）打包成 `srmodels.bin`，并由 `idf.py flash` 烧入 `model` 分区；运行时 `esp_srmodel_init("model")` 以 mmap 方式加载。若分区表中缺少 `model` 分区，构建不会报错，但设备会打印 `MODEL_LOADER: Can not find model in partition table` 且 AFE 以 `detector: none` 运行，唤醒完全失效。
+
+本板不启用 xiaozhi 的主题/字体 assets 系统（`CONFIG_FLASH_NONE_ASSETS=y`，无 LVGL/emote Display），`assets` 分区仅用于眼珠动画。
+
+注意：更换分区表后必须整包 USB 重刷（`idf.py -p <端口> flash`，或烧录 `merged-binary.bin`）。本板从 `factory` 分区运行，OTA 升级会被跳过。
+
 ## 构建
 
 在已配置 ESP-IDF 环境的终端中执行：
@@ -66,3 +82,4 @@ python3 scripts/dual_eye_anim/verify_partition_image.py
 - 修改屏幕初始化时，同时检查 `config.h` 中的偏移量、颜色反转和 SPI 频率。
 - 屏幕和动画依赖真实硬件验证；构建成功不能替代显示方向、颜色、裁剪和音频播放测试。
 - 4 MB Flash 不适合双 OTA 分区，应用回滚和双 OTA 不应按常规板卡配置启用。
+- `model` 分区（唤醒词模型）与 `assets` 分区（眼珠动画）都不要挪作他用；改动分区表属于破坏性变更，必须整包重刷。
